@@ -49,6 +49,18 @@ static inline NSString *cachePathForKey(NSString *key) {
 	return _sharedCache;
 }
 
++ (NSURLSession *) sharedSession {
+    static NSURLSession *_sharedSession = nil;
+    static dispatch_once_t onceToken;
+
+    dispatch_once(&onceToken, ^{
+        _sharedSession = [NSURLSession sessionWithConfiguration:
+            [NSURLSessionConfiguration defaultSessionConfiguration]];
+    });
+
+    return _sharedSession;
+}
+
 - (id) init {
     self = [super init];
     if(!self) return nil;
@@ -73,9 +85,20 @@ static inline NSString *cachePathForKey(NSString *key) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         
         NSURLRequest* request = [NSURLRequest requestWithURL:url];
-        NSURLResponse* response = nil;
-        NSError* error = nil;
-        NSData* data = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:&error];
+
+        __block NSData* data = nil;
+        __block NSURLResponse* response = nil;
+        __block NSError* error = nil;
+
+        dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+
+        [[[JMImageCache sharedSession] dataTaskWithRequest:request
+          completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+            data = d; response = r; error = e;
+            dispatch_semaphore_signal(sema);
+        }] resume];
+
+        dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
         
         if (error)
         {
