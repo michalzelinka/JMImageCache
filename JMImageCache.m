@@ -86,57 +86,47 @@ static inline NSString *cachePathForKey(NSString *key) {
         
         NSURLRequest* request = [NSURLRequest requestWithURL:url];
 
-        __block NSData* data = nil;
-        __block NSURLResponse* response = nil;
-        __block NSError* error = nil;
-
-        dispatch_semaphore_t sema = dispatch_semaphore_create(0);
-
         [[[JMImageCache sharedSession] dataTaskWithRequest:request
-          completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
-            data = d; response = r; error = e;
-            dispatch_semaphore_signal(sema);
-        }] resume];
+          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
 
-        dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
-        
-        if (error)
-        {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                
-                if(failure)  failure(request, response, error);
-            });
-            return;
-        }
-        
-        UIImage *i = [[UIImage alloc] initWithData:data];
-        if (!i)
-        {
-            NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
-            [errorDetail setValue:[NSString stringWithFormat:@"Failed to init image with data from for URL: %@", url] forKey:NSLocalizedDescriptionKey];
-            NSError* error = [NSError errorWithDomain:@"JMImageCacheErrorDomain" code:1 userInfo:errorDetail];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                
-                if(failure) failure(request, response, error);
-            });
-        }
-        else
-        {
-            NSString *cachePath = cachePathForKey(key);
-            NSInvocation *writeInvocation = [NSInvocation invocationWithMethodSignature:[self methodSignatureForSelector:@selector(writeData:toPath:)]];
-            
-            [writeInvocation setTarget:self];
-            [writeInvocation setSelector:@selector(writeData:toPath:)];
-            [writeInvocation setArgument:&data atIndex:2];
-            [writeInvocation setArgument:&cachePath atIndex:3];
-            
-            [self performDiskWriteOperation:writeInvocation];
-            [self setImage:i forKey:key];
-            
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if(completion) completion(i);
-            });
-        }
+            if (error)
+            {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if(failure) failure(request, response, error);
+                });
+                return;
+            }
+
+            UIImage *i = [[UIImage alloc] initWithData:data];
+            if (!i)
+            {
+                NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+                [errorDetail setValue:[NSString stringWithFormat:@"Failed to init image with data from for URL: %@", url] forKey:NSLocalizedDescriptionKey];
+                NSError* error = [NSError errorWithDomain:@"JMImageCacheErrorDomain" code:1 userInfo:errorDetail];
+
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if(failure) failure(request, response, error);
+                });
+            }
+            else
+            {
+                NSString *cachePath = cachePathForKey(key);
+                NSInvocation *writeInvocation = [NSInvocation invocationWithMethodSignature:[self methodSignatureForSelector:@selector(writeData:toPath:)]];
+
+                [writeInvocation setTarget:self];
+                [writeInvocation setSelector:@selector(writeData:toPath:)];
+                [writeInvocation setArgument:&data atIndex:2];
+                [writeInvocation setArgument:&cachePath atIndex:3];
+
+                [self performDiskWriteOperation:writeInvocation];
+                [self setImage:i forKey:key];
+
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if(completion) completion(i);
+                });
+            }
+
+          }] resume];
     });
 }
 
