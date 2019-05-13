@@ -237,8 +237,9 @@ static inline NSString *cachePathForKey(NSString *key) {
 }
 
 - (UIImage *) imageFromDiskForKey:(NSString *)key {
-	UIImage *i = [[UIImage alloc] initWithData:[NSData dataWithContentsOfFile:cachePathForKey(key) options:0 error:NULL]];
-	return i;
+    NSData *data = [NSData dataWithContentsOfFile:cachePathForKey(key) options:0 error:NULL];
+    UIImage *i = (data) ? [[UIImage alloc] initWithData:data] : nil;
+    return i;
 }
 
 - (UIImage *) imageFromDiskForURL:(NSURL *)url {
