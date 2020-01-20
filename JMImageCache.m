@@ -11,6 +11,7 @@
 
 @interface JMImageCache ()
 
++ (NSString *)MD5FromString:(NSString *)string;
 + (NSString *)SHA1FromString:(NSString *)string;
 
 @end
@@ -29,7 +30,7 @@ inline static NSString *keyForURL(NSURL *url) {
     return [url absoluteString];
 }
 static inline NSString *cachePathForKey(NSString *key) {
-    NSString *fileName = [NSString stringWithFormat:@"JMImageCache-%@", [JMImageCache SHA1FromString:key]];
+    NSString *fileName = [NSString stringWithFormat:@"JMImageCache-%@", [JMImageCache MD5FromString:key]];
     return [JMImageCacheDirectory() stringByAppendingPathComponent:fileName];
 }
 
@@ -285,6 +286,25 @@ static inline NSString *cachePathForKey(NSString *key) {
 
 #pragma mark -
 #pragma mark Hash methods
+
++ (NSString *)MD5FromString:(NSString *)string
+{
+    unsigned char digest[CC_MD5_DIGEST_LENGTH];
+
+    NSData *stringBytes = [string dataUsingEncoding:NSUTF8StringEncoding];
+
+    if (CC_MD5([stringBytes bytes], (CC_LONG)[stringBytes length], digest)) {
+
+        NSMutableString *output = [NSMutableString stringWithCapacity:CC_MD5_DIGEST_LENGTH * 2];
+
+        for (int i = 0; i < CC_MD5_DIGEST_LENGTH; i++) {
+            [output appendFormat:@"%02x", digest[i]];
+        }
+
+        return output;
+    }
+    return nil;
+}
 
 + (NSString *)SHA1FromString:(NSString *)string
 {
