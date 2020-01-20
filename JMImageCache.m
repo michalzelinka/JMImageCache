@@ -6,24 +6,31 @@
 //  Copyright 2011 Jake Marsh. All rights reserved.
 //
 
+#import <CommonCrypto/CommonCrypto.h>
 #import "JMImageCache.h"
 
-static inline NSString *JMImageCacheDirectory() {
-	static NSString *_JMImageCacheDirectory;
-	static dispatch_once_t onceToken;
-    
-	dispatch_once(&onceToken, ^{
-		_JMImageCacheDirectory = [[NSHomeDirectory() stringByAppendingPathComponent:@"Library/Caches/JMCache"] copy];
-	});
+@interface JMImageCache ()
 
-	return _JMImageCacheDirectory;
++ (NSString *)SHA1FromString:(NSString *)string;
+
+@end
+
+static inline NSString *JMImageCacheDirectory() {
+    static NSString *_JMImageCacheDirectory;
+    static dispatch_once_t onceToken;
+    
+    dispatch_once(&onceToken, ^{
+        _JMImageCacheDirectory = [[NSHomeDirectory() stringByAppendingPathComponent:@"Library/Caches/JMCache"] copy];
+    });
+
+    return _JMImageCacheDirectory;
 }
 inline static NSString *keyForURL(NSURL *url) {
-	return [url absoluteString];
+    return [url absoluteString];
 }
 static inline NSString *cachePathForKey(NSString *key) {
-    NSString *fileName = [NSString stringWithFormat:@"JMImageCache-%tu", [key hash]];
-	return [JMImageCacheDirectory() stringByAppendingPathComponent:fileName];
+    NSString *fileName = [NSString stringWithFormat:@"JMImageCache-%@", [JMImageCache SHA1FromString:key]];
+    return [JMImageCacheDirectory() stringByAppendingPathComponent:fileName];
 }
 
 @interface JMImageCache ()
@@ -39,14 +46,14 @@ static inline NSString *cachePathForKey(NSString *key) {
 @synthesize diskOperationQueue = _diskOperationQueue;
 
 + (JMImageCache *) sharedCache {
-	static JMImageCache *_sharedCache = nil;
-	static dispatch_once_t onceToken;
+    static JMImageCache *_sharedCache = nil;
+    static dispatch_once_t onceToken;
 
-	dispatch_once(&onceToken, ^{
-		_sharedCache = [[JMImageCache alloc] init];
-	});
+    dispatch_once(&onceToken, ^{
+        _sharedCache = [[JMImageCache alloc] init];
+    });
 
-	return _sharedCache;
+    return _sharedCache;
 }
 
 + (NSURLSession *) sharedSession {
@@ -71,7 +78,7 @@ static inline NSString *cachePathForKey(NSString *key) {
                               withIntermediateDirectories:YES
                                                attributes:nil
                                                     error:NULL];
-	return self;
+    return self;
 }
 
 - (void) _downloadAndWriteImageForURL:(NSURL *)url key:(NSString *)key completionBlock:(void (^)(UIImage *image))completion failureBlock:(void (^)(NSURLRequest *request, NSURLResponse *response, NSError* error))failure
@@ -173,11 +180,11 @@ static inline NSString *cachePathForKey(NSString *key) {
 
 - (void) imageForURL:(NSURL *)url key:(NSString *)key completionBlock:(void (^)(UIImage *image))completion failureBlock:(void (^)(NSURLRequest *request, NSURLResponse *response, NSError* error))failure{
 
-	UIImage *i = [self cachedImageForKey:key];
+    UIImage *i = [self cachedImageForKey:key];
 
-	if(i) {
-		if(completion) completion(i);
-	} else {
+    if(i) {
+        if(completion) completion(i);
+    } else {
         [self _downloadAndWriteImageForURL:url key:key completionBlock:completion failureBlock:failure];
     }
 }
@@ -189,11 +196,11 @@ static inline NSString *cachePathForKey(NSString *key) {
 - (UIImage *) cachedImageForKey:(NSString *)key {
     if(!key) return nil;
 
-	id returner = [super objectForKey:key];
+    id returner = [super objectForKey:key];
 
-	if(returner) {
+    if(returner) {
         return returner;
-	} else {
+    } else {
         UIImage *i = [self imageFromDiskForKey:key];
         if(i) [self setImage:i forKey:key];
 
@@ -209,13 +216,13 @@ static inline NSString *cachePathForKey(NSString *key) {
 }
 
 - (UIImage *) imageForURL:(NSURL *)url key:(NSString*)key delegate:(id<JMImageCacheDelegate>)d {
-	if(!url) return nil;
+    if(!url) return nil;
 
-	UIImage *i = [self cachedImageForURL:url];
+    UIImage *i = [self cachedImageForURL:url];
 
-	if(i) {
-		return i;
-	} else {
+    if(i) {
+        return i;
+    } else {
         [self _downloadAndWriteImageForURL:url key:key completionBlock:^(UIImage *image) {
             if(d) {
                 if([d respondsToSelector:@selector(cache:didDownloadImage:forURL:)]) {
@@ -250,15 +257,15 @@ static inline NSString *cachePathForKey(NSString *key) {
 #pragma mark Setter Methods
 
 - (void) setImage:(UIImage *)i forKey:(NSString *)key {
-	if (i) {
-		[super setObject:i forKey:key];
-	}
+    if (i) {
+        [super setObject:i forKey:key];
+    }
 }
 - (void) setImage:(UIImage *)i forURL:(NSURL *)url {
     [self setImage:i forKey:keyForURL(url)];
 }
 - (void) removeImageForKey:(NSString *)key {
-	[self removeObjectForKey:key];
+    [self removeObjectForKey:key];
 }
 - (void) removeImageForURL:(NSURL *)url {
     [self removeImageForKey:keyForURL(url)];
@@ -268,12 +275,34 @@ static inline NSString *cachePathForKey(NSString *key) {
 #pragma mark Disk Writing Operations
 
 - (void) writeData:(NSData*)data toPath:(NSString *)path {
-	[data writeToFile:path atomically:YES];
+    [data writeToFile:path atomically:YES];
 }
 - (void) performDiskWriteOperation:(NSInvocation *)invoction {
-	NSInvocationOperation *operation = [[NSInvocationOperation alloc] initWithInvocation:invoction];
+    NSInvocationOperation *operation = [[NSInvocationOperation alloc] initWithInvocation:invoction];
     
-	[self.diskOperationQueue addOperation:operation];
+    [self.diskOperationQueue addOperation:operation];
+}
+
+#pragma mark -
+#pragma mark Hash methods
+
++ (NSString *)SHA1FromString:(NSString *)string
+{
+    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
+    
+    NSData *stringBytes = [string dataUsingEncoding:NSUTF8StringEncoding];
+    
+    if (CC_SHA1([stringBytes bytes], (CC_LONG)[stringBytes length], digest)) {
+        
+        NSMutableString *output = [NSMutableString stringWithCapacity:CC_SHA1_DIGEST_LENGTH * 2];
+        
+        for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
+            [output appendFormat:@"%02x", digest[i]];
+        }
+        
+        return output;
+    }
+    return nil;
 }
 
 @end
