@@ -44,13 +44,6 @@
 }
 
 #pragma mark -
-#pragma mark Autorotation Methods
-
-- (BOOL) shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation {
-	return toInterfaceOrientation != UIInterfaceOrientationPortraitUpsideDown;
-}
-
-#pragma mark -
 #pragma mark Cleanup Methods
 
 - (void) didReceiveMemoryWarning {
